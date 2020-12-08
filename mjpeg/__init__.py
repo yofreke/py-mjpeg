@@ -32,14 +32,26 @@ def read_headers(stream, boundary):
     fields values.
     '''
     l = read_header_line(stream)
+    # print("l 1=", l)
     if l == '':
         l = read_header_line(stream)
+        # print("l 2=", l)
+
+    # Original, throws error with default esp32-cam firmware
+    # if l != boundary:
     if l != boundary:
-        raise ProtoError('Boundary string expected, but not found')
+        # Check for initial header
+        if not l or l.find(':') <= 0:
+            print("boundary=", boundary)
+            raise ProtoError('Boundary string expected, but not found')
+    else:
+        l = None
 
     headers = {}
     while True:
-        l = read_header_line(stream)
+        if not l:
+            l = read_header_line(stream)
+
         # An empty line indicates the end of the header section
         if l == '':
             break
@@ -54,6 +66,8 @@ def read_headers(stream, boundary):
         lst = headers.get(name, list())
         lst.append(body)
         headers[name] = lst
+
+        l = None
 
     return headers
 
@@ -152,6 +166,8 @@ def read_mjpeg_frame(stream, boundary, buf, length, skip_big=True):
     hdr = read_headers(stream, boundary)
 
     clen = parse_content_length(hdr)
+    # print("clen=", clen)
+
     if clen == 0:
         raise EOFError('End of stream reached')
 
@@ -164,6 +180,8 @@ def read_mjpeg_frame(stream, boundary, buf, length, skip_big=True):
     if length >= clen:
         read_data(buf, stream, clen)
     else:
+        if length > 0:
+            print(f"buffer length too small: length= {length} clen= {clen}")
         skip_data(stream, clen)
 
     return (timestamp, clen)
